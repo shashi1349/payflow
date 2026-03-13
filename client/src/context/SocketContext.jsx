@@ -9,16 +9,42 @@ export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      // Disconnect if user logs out
+      return;
+    }
+
+    // Don't create a new socket if one already exists
+    if (socket?.connected) {
+      socket.emit("join_user_room", user._id);
+      return;
+    }
 
     const s = io(import.meta.env.VITE_SOCKET_URL, {
       withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
 
-    s.on("connect", () => console.log("🔌 Socket connected:", s.id));
+    s.on("connect", () => {
+      console.log("🔌 Socket connected:", s.id);
+      s.emit("join_user_room", user._id);
+    });
+
+    s.on("reconnect", () => {
+      s.emit("join_user_room", user._id);
+    });
+
+    s.on("disconnect", (reason) => {
+      console.log("❌ Socket disconnected:", reason);
+    });
+
     setSocket(s);
 
-    return () => s.disconnect();
+    return () => {
+      // Only disconnect on logout, not on navigation
+    };
   }, [user]);
 
   return (

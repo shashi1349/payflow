@@ -5,7 +5,13 @@ let io;
 export const initSocket = (httpServer) => {
   io = new Server(httpServer, {
     cors: {
-      origin: ["http://localhost:5176"],
+      origin: function (origin, callback) {
+        if (!origin || origin.startsWith("http://localhost")) {
+          callback(null, true);
+        } else {
+          callback(new Error("Not allowed by CORS"));
+        }
+      },
       methods: ["GET", "POST"],
       credentials: true,
     },
@@ -14,16 +20,20 @@ export const initSocket = (httpServer) => {
   io.on("connection", (socket) => {
     console.log(`🔌 Client connected: ${socket.id}`);
 
-    // Client joins a room specific to a payment
+    // User joins their personal room on dashboard load
+    socket.on("join_user_room", (userId) => {
+      socket.join(`user:${userId}`);
+      console.log(`👤 Socket ${socket.id} joined user room: ${userId}`);
+    });
+
+    // User joins a specific payment room on detail page
     socket.on("join_payment_room", (paymentId) => {
       socket.join(paymentId);
       console.log(`📦 Socket ${socket.id} joined room: ${paymentId}`);
     });
 
-    // Client leaves room when navigating away
     socket.on("leave_payment_room", (paymentId) => {
       socket.leave(paymentId);
-      console.log(`📤 Socket ${socket.id} left room: ${paymentId}`);
     });
 
     socket.on("disconnect", () => {
@@ -34,7 +44,6 @@ export const initSocket = (httpServer) => {
   return io;
 };
 
-// Call this from anywhere in the server to get the io instance
 export const getIO = () => {
   if (!io) throw new Error("Socket.io not initialized");
   return io;

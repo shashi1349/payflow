@@ -173,3 +173,21 @@ export const getMe = asyncWrapper(async (req, res) => {
   }
   res.json({ success: true, data: { user } });
 });
+
+export const searchUsers = asyncWrapper(async (req, res) => {
+  const { q } = req.query;
+
+  if (!q || q.length < 2) {
+    return res.json({ success: true, data: { users: [] } });
+  }
+
+  const users = await User.find({
+    _id: { $ne: req.userId }, // exclude yourself
+    $or: [
+      { name: { $regex: q, $options: "i" } },
+      { email: { $regex: q, $options: "i" } },
+    ],
+  }).select("name email role").limit(5);
+
+  res.json({ success: true, data: { users } });
+});

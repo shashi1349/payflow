@@ -47,7 +47,7 @@ export default function PaymentDetail() {
 
     return () => {
       socket.emit("leave_payment_room", id);
-      socket.off("status_update");
+      socket.off("status_update"); // removes only this specific listener
     };
   }, [socket, id]);
 

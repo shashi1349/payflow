@@ -11,3 +11,6 @@ export const logoutApi = () =>
 
 export const getMeApi = () =>
   axiosInstance.get("/auth/me");
+
+export const searchUsersApi = (query) =>
+  axiosInstance.get(`/auth/users/search?q=${query}`);

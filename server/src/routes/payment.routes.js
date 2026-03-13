@@ -6,15 +6,15 @@ import {
   updatePaymentStatus,
 } from "../controllers/payment.controller.js";
 import { authenticate } from "../middleware/authenticate.js";
+import { rateLimiter } from "../middleware/rateLimiter.js";
 
 const router = Router();
 
-// All payment routes are protected
 router.use(authenticate);
 
-router.post("/", createPayment);
-router.get("/", getPayments);
-router.get("/:id", getPaymentById);
-router.patch("/:id/status", updatePaymentStatus);
+router.post("/", rateLimiter, createPayment);      // rate limit writes only
+router.get("/", getPayments);                       // no limit on reads
+router.get("/:id", getPaymentById);                // no limit on reads
+router.patch("/:id/status", rateLimiter, updatePaymentStatus);
 
 export default router;

@@ -24,7 +24,14 @@ connectDB();
 // Global Middleware
 app.use(helmet());
 app.use(cors({
-  origin: ["http://localhost:5176"],
+  origin: function (origin, callback) {
+    // Allow any localhost port during development
+    if (!origin || origin.startsWith("http://localhost")) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true,
 }));
 app.use(express.json());
@@ -36,7 +43,7 @@ app.get("/health", (req, res) => {
 
 // Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/payments", rateLimiter, paymentRoutes);
+app.use("/api/payments", paymentRoutes);
 
 // Global error handler — must be last
 app.use(errorHandler);

@@ -48,6 +48,6 @@ const paymentSchema = new mongoose.Schema(
 paymentSchema.index({ senderId: 1, createdAt: -1 });   // dashboard query
 paymentSchema.index({ receiverId: 1, createdAt: -1 }); // merchant view
 paymentSchema.index({ status: 1, updatedAt: -1 });     // filter by status
-paymentSchema.index({ idempotencyKey: 1 }, { unique: true }); // dedup
+
 
 export default mongoose.model("Payment", paymentSchema);

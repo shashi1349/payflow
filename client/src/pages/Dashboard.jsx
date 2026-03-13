@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
-import { getPaymentsApi } from "../api/paymentApi";
+import { getPaymentsApi, getPaymentByIdApi } from "../api/paymentApi";
+import { useSocket } from "../context/SocketContext";
+import { useAuth } from "../context/AuthContext";
 import Navbar from "../components/layout/Navbar";
 import PaymentForm from "../components/payments/PaymentForm";
 import PaymentCard from "../components/payments/PaymentCard";
@@ -8,6 +10,8 @@ import Loader from "../components/common/Loader";
 export default function Dashboard() {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { socket } = useSocket();
+  const { user } = useAuth();
 
   useEffect(() => {
     getPaymentsApi()
@@ -16,8 +20,53 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handlePaymentCreated = (newPayment) => {
-    setPayments((prev) => [newPayment, ...prev]);
+  useEffect(() => {
+    if (!socket || !user) return;
+
+    socket.emit("join_user_room", user._id);
+
+    // Fetch full payment from API so names are always populated
+    socket.on("new_payment", async (payment) => {
+      try {
+        const id = payment._id || payment.paymentId;
+        const { data } = await getPaymentByIdApi(id);
+        const fullPayment = data.data.payment;
+
+        setPayments((prev) => {
+          const exists = prev.find((p) => p._id?.toString() === fullPayment._id?.toString());
+          if (exists) return prev;
+          return [fullPayment, ...prev];
+        });
+      } catch (err) {
+        console.error("Failed to fetch new payment:", err);
+      }
+    });
+
+    socket.on("payment_status_changed", ({ paymentId, currentStatus }) => {
+      setPayments((prev) =>
+        prev.map((p) =>
+          p._id?.toString() === paymentId?.toString()
+            ? { ...p, status: currentStatus }
+            : p
+        )
+      );
+    });
+
+    return () => {
+      socket.off("new_payment");
+      socket.off("payment_status_changed");
+    };
+  }, [socket, user]);
+
+  const handlePaymentCreated = async (newPayment) => {
+    // Also fetch full payment for sender's dashboard
+    try {
+      const id = newPayment._id || newPayment.paymentId;
+      const { data } = await getPaymentByIdApi(id);
+      setPayments((prev) => [data.data.payment, ...prev]);
+    } catch {
+      setPayments((prev) => [newPayment, ...prev]);
+    }
   };
 
   return (

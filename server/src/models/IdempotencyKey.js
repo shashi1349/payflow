@@ -21,6 +21,6 @@ const idempotencyKeySchema = new mongoose.Schema({
 
 // TTL index — auto purges after 24h, zero cron needed
 idempotencyKeySchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-idempotencyKeySchema.index({ key: 1 }, { unique: true });
+
 
 export default mongoose.model("IdempotencyKey", idempotencyKeySchema);

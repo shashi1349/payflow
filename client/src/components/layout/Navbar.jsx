@@ -15,7 +15,7 @@ export default function Navbar() {
     <nav className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
       <div
         className="text-xl font-bold text-blue-600 cursor-pointer"
-        onClick={() => navigate("/dashboard")}
+        onClick={() => navigate("/dashboard", { replace: true })}
       >
         💳 PayFlow
       </div>

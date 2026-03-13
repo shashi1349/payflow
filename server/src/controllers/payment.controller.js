@@ -5,7 +5,7 @@ import StatusHistory from "../models/StatusHistory.js";
 import User from "../models/User.js";
 import { transitionPayment, isTerminalStatus } from "../services/stateMachine.js";
 import { checkIdempotency, saveIdempotency } from "../services/idempotency.js";
-import { notifyStatusChange } from "../services/notifier.js";
+import { notifyStatusChange, notifyNewPayment } from "../services/notifier.js";
 import { asyncWrapper } from "../utils/asyncWrapper.js";
 
 // ─── CREATE PAYMENT ─────────────────────────────────────────
@@ -13,7 +13,6 @@ export const createPayment = asyncWrapper(async (req, res) => {
   const { receiverId, amount, currency } = req.body;
   const senderId = req.userId;
 
-  // Validate body
   if (!receiverId || !amount) {
     return res.status(400).json({
       success: false,
@@ -21,20 +20,17 @@ export const createPayment = asyncWrapper(async (req, res) => {
     });
   }
 
-  // Get or generate idempotency key from header
   const idempotencyKey = req.headers["idempotency-key"] || uuidv4();
 
-  // Check for duplicate request
   const cached = await checkIdempotency(idempotencyKey);
   if (cached) {
     return res.status(200).json({
       success: true,
-      idempotent: true,       // tells client this was a duplicate
+      idempotent: true,
       data: cached,
     });
   }
 
-  // Validate receiver exists
   const receiver = await User.findById(receiverId);
   if (!receiver) {
     return res.status(404).json({
@@ -43,19 +39,18 @@ export const createPayment = asyncWrapper(async (req, res) => {
     });
   }
 
-  // Prevent self-payment
-  if (senderId === receiverId) {
+  if (senderId.toString() === receiverId.toString()) {
     return res.status(400).json({
       success: false,
       error: "Cannot send payment to yourself",
     });
   }
 
-  // Use MongoDB session for atomic write
   const session = await mongoose.startSession();
-  session.startTransaction();
 
   try {
+    session.startTransaction();
+
     const [payment] = await Payment.create(
       [{
         idempotencyKey,
@@ -68,7 +63,6 @@ export const createPayment = asyncWrapper(async (req, res) => {
       { session }
     );
 
-    // Append first status history entry
     await StatusHistory.create(
       [{
         paymentId: payment._id,
@@ -80,8 +74,15 @@ export const createPayment = asyncWrapper(async (req, res) => {
     );
 
     await session.commitTransaction();
+    session.endSession();
+
+    // Populate AFTER session ends
+    const populatedPayment = await Payment.findById(payment._id)
+      .populate("senderId", "name email")
+      .populate("receiverId", "name email");
 
     const responseData = {
+      _id: payment._id,
       paymentId: payment._id,
       status: payment.status,
       amount: payment.amount,
@@ -89,8 +90,8 @@ export const createPayment = asyncWrapper(async (req, res) => {
       createdAt: payment.createdAt,
     };
 
-    // Cache for idempotency
     await saveIdempotency(idempotencyKey, payment._id, responseData);
+    notifyNewPayment(populatedPayment);
 
     res.status(201).json({
       success: true,
@@ -99,10 +100,11 @@ export const createPayment = asyncWrapper(async (req, res) => {
     });
 
   } catch (err) {
-    await session.abortTransaction();
-    throw err;
-  } finally {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     session.endSession();
+    throw err;
   }
 });
 
@@ -133,7 +135,6 @@ export const getPaymentById = asyncWrapper(async (req, res) => {
     return res.status(404).json({ success: false, error: "Payment not found" });
   }
 
-  // Only sender or receiver can view
   const isSender = payment.senderId._id.toString() === userId;
   const isReceiver = payment.receiverId._id.toString() === userId;
 
@@ -164,7 +165,6 @@ export const updatePaymentStatus = asyncWrapper(async (req, res) => {
     return res.status(404).json({ success: false, error: "Payment not found" });
   }
 
-  // Block updates on terminal statuses
   if (isTerminalStatus(payment.status)) {
     return res.status(422).json({
       success: false,
@@ -172,16 +172,15 @@ export const updatePaymentStatus = asyncWrapper(async (req, res) => {
     });
   }
 
-  // Validate transition through state machine
   transitionPayment(payment.status, targetStatus);
 
   const session = await mongoose.startSession();
-  session.startTransaction();
 
   try {
+    session.startTransaction();
+
     const previousStatus = payment.status;
 
-    // Optimistic concurrency — only update if version matches
     const updated = await Payment.findOneAndUpdate(
       { _id: id, version: payment.version },
       {
@@ -194,6 +193,7 @@ export const updatePaymentStatus = asyncWrapper(async (req, res) => {
 
     if (!updated) {
       await session.abortTransaction();
+      session.endSession();
       return res.status(409).json({
         success: false,
         error: "Payment was modified by another request. Please retry.",
@@ -211,13 +211,15 @@ export const updatePaymentStatus = asyncWrapper(async (req, res) => {
     );
 
     await session.commitTransaction();
+    session.endSession();
 
-    // Real-time push to all clients watching this payment
     notifyStatusChange(id, {
       paymentId: id,
       previousStatus,
       currentStatus: targetStatus,
       transitionedAt: new Date().toISOString(),
+      senderId: updated.senderId.toString(),
+      receiverId: updated.receiverId.toString(),
     });
 
     res.json({
@@ -231,9 +233,10 @@ export const updatePaymentStatus = asyncWrapper(async (req, res) => {
     });
 
   } catch (err) {
-    await session.abortTransaction();
-    throw err;
-  } finally {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     session.endSession();
+    throw err;
   }
 });
