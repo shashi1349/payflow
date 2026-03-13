@@ -1,12 +1,10 @@
 import express from "express";
 import helmet from "helmet";
-import cors from "cors";
 import dotenv from "dotenv";
 import { createServer } from "http";
 import { connectDB } from "./src/config/db.js";
 import { initSocket } from "./src/config/socket.js";
 import { errorHandler } from "./src/middleware/errorHandler.js";
-import { rateLimiter } from "./src/middleware/rateLimiter.js";
 import authRoutes from "./src/routes/auth.routes.js";
 import paymentRoutes from "./src/routes/payment.routes.js";
 
@@ -21,37 +19,40 @@ initSocket(httpServer);
 // Connect to MongoDB
 connectDB();
 
-// Global Middleware
-app.use(helmet());
-app.use(cors({
-  origin: function (origin, callback) {
-    const allowed = [
-      process.env.CLIENT_URL,
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://localhost:5175",
-      "http://localhost:5176",
-    ];
-    if (!origin || allowed.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error(`CORS blocked: ${origin}`));
-    }
-  },
-  credentials: true,
-}));
+// ─── CORS — manual headers, works on all environments ───────
+app.use((req, res, next) => {
+  const allowedOrigins = [
+    "https://payflow-sandy.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:5176",
+  ];
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,Idempotency-Key");
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+
+// ─── Global Middleware ───────────────────────────────────────
+app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(express.json());
 
-// Health check route — always useful in interviews to mention
+// ─── Health check ────────────────────────────────────────────
 app.get("/health", (req, res) => {
   res.json({ success: true, message: "PayFlow server is running 🚀" });
 });
 
-// Routes
+// ─── Routes ──────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
 app.use("/api/payments", paymentRoutes);
 
-// Global error handler — must be last
+// ─── Global error handler — must be last ─────────────────────
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
