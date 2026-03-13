@@ -25,11 +25,17 @@ connectDB();
 app.use(helmet());
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow any localhost port during development
-    if (!origin || origin.startsWith("http://localhost")) {
+    const allowed = [
+      process.env.CLIENT_URL,
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:5175",
+      "http://localhost:5176",
+    ];
+    if (!origin || allowed.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error("Not allowed by CORS"));
+      callback(new Error(`CORS blocked: ${origin}`));
     }
   },
   credentials: true,
