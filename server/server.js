@@ -13,16 +13,6 @@ dotenv.config();
 const app = express();
 const httpServer = createServer(app);
 
-import cors from "cors";
-
-app.use(cors({
-  origin: [
-    "https://payflow-sandy.vercel.app",
-    "http://localhost:5173"
-  ],
-  credentials: true
-}));
-
 // Attach Socket.io BEFORE routes
 initSocket(httpServer);
 
@@ -33,19 +23,31 @@ connectDB();
 app.use((req, res, next) => {
   const allowedOrigins = [
     "https://payflow-sandy.vercel.app",
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:5175",
-    "http://localhost:5176",
+    "http://localhost:5173"
   ];
+
   const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
+
+  if (origin && allowedOrigins.some(o => origin.startsWith(o))) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
+
   res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,Idempotency-Key");
-  if (req.method === "OPTIONS") return res.sendStatus(204);
+
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization, Idempotency-Key"
+  );
+
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PATCH, DELETE, OPTIONS"
+  );
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
   next();
 });
 
