@@ -13,6 +13,16 @@ dotenv.config();
 const app = express();
 const httpServer = createServer(app);
 
+import cors from "cors";
+
+app.use(cors({
+  origin: [
+    "https://payflow-sandy.vercel.app",
+    "http://localhost:5173"
+  ],
+  credentials: true
+}));
+
 // Attach Socket.io BEFORE routes
 initSocket(httpServer);
 
