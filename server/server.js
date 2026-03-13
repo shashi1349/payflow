@@ -19,40 +19,35 @@ initSocket(httpServer);
 // Connect to MongoDB
 connectDB();
 
-// ─── CORS — manual headers, works on all environments ───────
+// ─── 1. Helmet FIRST ─────────────────────────────────────────
+app.use(helmet({ crossOriginResourcePolicy: false }));
+
+// ─── 2. CORS SECOND ──────────────────────────────────────────
 app.use((req, res, next) => {
   const allowedOrigins = [
     "https://payflow-sandy.vercel.app",
     "http://localhost:5173"
   ];
-
   const origin = req.headers.origin;
-
   if (origin && allowedOrigins.some(o => origin.startsWith(o))) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
-
   res.setHeader("Access-Control-Allow-Credentials", "true");
-
   res.setHeader(
     "Access-Control-Allow-Headers",
     "Origin, X-Requested-With, Content-Type, Accept, Authorization, Idempotency-Key"
   );
-
   res.setHeader(
     "Access-Control-Allow-Methods",
     "GET, POST, PATCH, DELETE, OPTIONS"
   );
-
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
-
   next();
 });
 
-// ─── Global Middleware ───────────────────────────────────────
-app.use(helmet({ crossOriginResourcePolicy: false }));
+// ─── 3. Body Parser THIRD ────────────────────────────────────
 app.use(express.json());
 
 // ─── Health check ────────────────────────────────────────────
