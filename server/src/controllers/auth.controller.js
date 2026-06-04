@@ -181,11 +181,15 @@ export const searchUsers = asyncWrapper(async (req, res) => {
     return res.json({ success: true, data: { users: [] } });
   }
 
+  // Escape regex metacharacters so user input is treated as a literal string
+  // (prevents regex injection / ReDoS).
+  const safeQuery = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
   const users = await User.find({
     _id: { $ne: req.userId }, // exclude yourself
     $or: [
-      { name: { $regex: q, $options: "i" } },
-      { email: { $regex: q, $options: "i" } },
+      { name: { $regex: safeQuery, $options: "i" } },
+      { email: { $regex: safeQuery, $options: "i" } },
     ],
   }).select("name email role").limit(5);
 

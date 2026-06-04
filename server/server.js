@@ -29,7 +29,7 @@ app.use((req, res, next) => {
     "http://localhost:5173"
   ];
   const origin = req.headers.origin;
-  if (origin && allowedOrigins.some(o => origin.startsWith(o))) {
+  if (origin && allowedOrigins.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
   res.setHeader("Access-Control-Allow-Credentials", "true");
