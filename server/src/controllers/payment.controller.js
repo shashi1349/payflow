@@ -152,6 +152,8 @@ export const getPaymentById = asyncWrapper(async (req, res) => {
 export const updatePaymentStatus = asyncWrapper(async (req, res) => {
   const { id } = req.params;
   const { targetStatus, failureReason } = req.body;
+    const userId = req.userId;
+
 
   if (!targetStatus) {
     return res.status(400).json({
@@ -165,6 +167,13 @@ export const updatePaymentStatus = asyncWrapper(async (req, res) => {
     return res.status(404).json({ success: false, error: "Payment not found" });
   }
 
+   // Only the sender or receiver of this payment may change its status.
+  const isSender = payment.senderId.toString() === userId;
+  const isReceiver = payment.receiverId.toString() === userId;
+  if (!isSender && !isReceiver) {
+    return res.status(403).json({ success: false, error: "Access denied" });
+  }
+  
   if (isTerminalStatus(payment.status)) {
     return res.status(422).json({
       success: false,
