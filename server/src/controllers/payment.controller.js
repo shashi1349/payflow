@@ -173,6 +173,15 @@ export const updatePaymentStatus = asyncWrapper(async (req, res) => {
   if (!isSender && !isReceiver) {
     return res.status(403).json({ success: false, error: "Access denied" });
   }
+
+   // Business rule: the sender only *initiates* a payment. Advancing its status
+  // (mark processing / settled / failed) is the recipient's responsibility.
+  if (!isReceiver) {
+    return res.status(403).json({
+      success: false,
+      error: "Only the recipient can update this payment's status",
+    });
+  }
   
   if (isTerminalStatus(payment.status)) {
     return res.status(422).json({
