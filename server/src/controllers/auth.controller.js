@@ -188,8 +188,8 @@ export const searchUsers = asyncWrapper(async (req, res) => {
   const users = await User.find({
     _id: { $ne: req.userId }, // exclude yourself
     $or: [
-      { name: { $regex: q, $options: "i" } },
-      { email: { $regex: q, $options: "i" } },
+      { name: { $regex: safeQuery, $options: "i" } },
+      { email: { $regex: safeQuery, $options: "i" } },
     ],
   }).select("name email role").limit(5);
 
