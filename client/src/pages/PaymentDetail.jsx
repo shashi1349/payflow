@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { getPaymentByIdApi, updatePaymentStatusApi } from "../api/paymentApi";
 import { useSocket } from "../context/SocketContext";
+import { useAuth } from "../context/AuthContext";
+
 import Navbar from "../components/layout/Navbar";
 import Badge from "../components/common/Badge";
 import Button from "../components/common/Button";
@@ -11,6 +13,8 @@ import Loader from "../components/common/Loader";
 export default function PaymentDetail() {
   const { id } = useParams();
   const { socket } = useSocket();
+    const { user } = useAuth();
+
   const [payment, setPayment] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -67,6 +71,11 @@ export default function PaymentDetail() {
 
   const isTerminal = ["settled", "failed"].includes(payment.status);
 
+   // Only the recipient advances a payment's status; the sender just initiates it.
+  const isRecipient =
+    payment.receiverId?._id?.toString() === user?._id?.toString();
+
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
@@ -107,8 +116,8 @@ export default function PaymentDetail() {
             </div>
           </div>
 
-          {/* Action buttons — hidden for terminal statuses */}
-          {!isTerminal && (
+           {/* Action buttons — recipient only, hidden for terminal statuses */}
+          {!isTerminal && isRecipient && (
             <div className="flex gap-2 mb-6">
               {payment.status === "initiated" && (
                 <Button
@@ -142,6 +151,18 @@ export default function PaymentDetail() {
             </div>
           )}
 
+           {/* Sender view — no actions; the recipient drives the payment forward */}
+          {!isTerminal && !isRecipient && (
+            <div className="mb-6 rounded-lg bg-gray-50 border border-gray-100 px-4 py-3 text-center">
+              <p className="text-sm text-gray-500">
+                Waiting for {payment.receiverId?.name || "the recipient"} to
+                process this payment.
+              </p>
+            </div>
+          )}
+
+
+          
           <StatusTimeline history={history} />
         </div>
       </div>
